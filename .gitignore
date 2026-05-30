@@ -41,6 +41,10 @@ data/processed/
 *.h5
 *.pt
 *.onnx
+# Mlflow
+mlruns/
+mlartifacts/
+mlruns.db
 
 # ==========================================
 # 5. Variáveis de Ambiente e Segredos
