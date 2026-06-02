@@ -109,7 +109,10 @@ Rodando um comando sem ativar o shell
 ```bash
 poetry run python meu_script.py
 poetry run pytest
+poetry run mlflow --version
+poetry run mlflow ui
 ```
+Se o terminal disser que `mlflow` não foi encontrado, execute `poetry shell` antes do comando ou use sempre `poetry run mlflow ...`. No Poetry, o executável não fica disponível como comando global do PowerShell. Para subir a interface, prefira `poetry run mlflow ui` ou `make mlflow-ui`.
 Saindo do ambiente virtual
 ```bash
 exit
