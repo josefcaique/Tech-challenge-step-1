@@ -20,7 +20,7 @@ class MLflowService:
 
     def __init__(
         self,
-        tracking_uri: str = "sqlite:///mlruns.db",
+        tracking_uri: str = "http://mlflow:5000",
         experiment_name: str = "default",
     ) -> None:
         self.tracking_uri = tracking_uri
