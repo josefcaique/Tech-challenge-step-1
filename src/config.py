@@ -33,7 +33,7 @@ class MLflowConfig:
     # Relative URI — works because notebooks do os.chdir(ROOT) before any MLflow call.
     # Avoids Windows backslash issues with absolute paths in sqlite:/// URIs.
     tracking_uri: str = "http://mlflow:5000"
-    artifact_uri = "s3://mlflow-artifacts/"
+    artifact_uri = "s3://mlflow/"
     experiment_name: str = "telco-churn-etapa2"
 
 
