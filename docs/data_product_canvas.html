@@ -478,7 +478,7 @@
         <span class="pipe-arrow">›</span>
         <span class="pipe-step">📈 MLflowService<small>params · métricas · artefatos · registry</small></span>
         <span class="pipe-arrow">›</span>
-        <span class="pipe-step">🚀 FastAPI<small>/predict · /health</small></span>
+        <span class="pipe-step">🚀 FastAPI<small>/predict · /health · /model</small></span>
       </div>
     </div>
   </div>
@@ -567,16 +567,20 @@
     <div class="card-body">
       <ul class="clean">
         <li><strong>Modo:</strong> Batch, processamento noturno com lista diária de risco</li>
-        <li><strong>API:</strong> FastAPI com <code>/predict</code> e <code>/health</code> via Pydantic</li>
-        <li><strong>Latência:</strong> batch tolerante a delay; real-time disponível via endpoint</li>
+        <li><strong>API:</strong> FastAPI com <code>/</code>, <code>/health</code>, <code>/model</code> e <code>/predict</code> via Pydantic</li>
+        <li><strong>Latência:</strong> batch tolerante a delay; real-time disponível via <code>POST /predict</code></li>
         <li><strong>Reprodutibilidade:</strong> seeds fixados, <code>pyproject.toml</code>, Poetry lock</li>
-        <li><strong>Deploy opcional:</strong> AWS, Azure ou GCP na Etapa 4</li>
+        <li><strong>Deploy local:</strong> Docker Compose (Postgres + MinIO + MLflow + FastAPI) na porta 8000</li>
+        <li><strong>Deploy AWS Lambda:</strong> <code>docker/lambda-api/Dockerfile</code> + Mangum como adapter ASGI → Lambda</li>
+        <li><strong>Modelo carregado:</strong> <code>MODEL_URI=models:/churn_prediction_pipeline/latest</code> via MLflow Registry</li>
       </ul>
     </div>
     <hr class="divider"/>
     <div class="tags">
       <span class="tag">Batch + API</span>
       <span class="tag">FastAPI</span>
+      <span class="tag low">AWS Lambda</span>
+      <span class="tag low">Docker Compose</span>
       <span class="tag light">Reprodutível</span>
     </div>
   </div>
@@ -646,6 +650,7 @@
         <div style="font-size:10px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">API e Testes</div>
         <div class="tags" style="flex-direction:column;gap:5px;">
           <span class="tag">FastAPI + Pydantic</span>
+          <span class="tag">Mangum: AWS Lambda adapter</span>
           <span class="tag">pytest com 3 testes ou mais</span>
           <span class="tag">Smoke · Schema · API</span>
         </div>
@@ -675,7 +680,7 @@
 <footer>
   <strong>Grupo Jarvis</strong> · PosTech Machine Learning Engineering · FIAP ·
   Tech Challenge Fase 1 · Dataset: Telco Customer Churn (IBM) ·
-  github.com/Cecilia-Rocha
+  github.com/josefcaique/Tech-challenge-step-1
 </footer>
 
 </body>

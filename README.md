@@ -2,13 +2,13 @@
 
 Projeto de engenharia de Machine Learning end-to-end: do dado bruto ao modelo rastreado com MLflow, com pipeline reprodutível e boas práticas de engenharia de software.
 
-**Tech Challenge — PosTech | Autores:** Patrick Covre · Beatriz Ferrante · Cecilia Rocha
+**Tech Challenge — PosTech | Autores:** Patrick Covre · Beatriz Ferrante · Cecilia Rocha · Daniel Lacerda · Josef Caique
 
 ---
 
 ## O que o projeto faz
 
-Uma operadora de telecomunicações precisa identificar clientes com risco de cancelamento (churn). Este projeto treina e compara modelos de ML — incluindo uma rede neural MLP com PyTorch — e registra todos os experimentos no MLflow para rastreabilidade.
+Uma operadora de telecomunicações precisa identificar clientes com risco de cancelamento (churn). Este projeto treina e compara modelos de ML — incluindo uma rede neural MLP com PyTorch —, registra todos os experimentos no MLflow e serve predições via API FastAPI com suporte a deploy em AWS Lambda.
 
 ---
 
@@ -62,6 +62,11 @@ tech-challenge/
 │   ├── config.py               ← Configurações centrais
 │   ├── pipeline.py             ← Orquestrador do pipeline completo
 │   │
+│   ├── api/
+│   │   ├── main.py             ← Aplicação FastAPI (endpoints + lifespan)
+│   │   ├── model.py            ← ChurnModelService (carrega modelo do MLflow)
+│   │   └── schemas.py          ← Schemas Pydantic (request / response)
+│   │
 │   ├── data/
 │   │   ├── churn.csv           ← Dataset (Telco Customer Churn — IBM)
 │   │   └── loader.py           ← Carregamento e pré-processamento
@@ -82,6 +87,18 @@ tech-challenge/
 │   │
 │   ├── docs/                   ← Gráficos gerados pelos notebooks
 │   └── tests/                  ← Testes automatizados (pytest)
+│
+├── docker/
+│   ├── docker-compose.yml      ← Stack completa: Postgres, MinIO, MLflow, Jupyter, FastAPI
+│   ├── fastapi-app/            ← Dockerfile + requirements da API
+│   ├── lambda-api/             ← Dockerfile para deploy AWS Lambda (Mangum)
+│   ├── mlflow/                 ← Dockerfile do servidor MLflow
+│   └── jupyter/                ← Dockerfile do Jupyter com MLflow integrado
+│
+├── docs/
+│   ├── data_product_canvas.html ← Canvas do produto de dados
+│   ├── model_card.md            ← Model Card com métricas, limitações e vieses
+│   └── commit_pattern.MD        ← Guia de commits convencionais
 │
 ├── pyproject.toml              ← Dependências, linting, pytest
 ├── Makefile                    ← Atalhos de linha de comando
@@ -239,6 +256,86 @@ Internamente o método `_configure_registered_version()` usa o `MlflowClient` pa
 
 ---
 
+### `src/api/` — API de inferência (FastAPI)
+
+**O que faz:** Serve o modelo registrado no MLflow como endpoint REST. Composto por três arquivos:
+
+- **`main.py`** — define a aplicação FastAPI, o lifespan (carrega o modelo na inicialização) e os endpoints
+- **`model.py`** — `ChurnModelService`: singleton thread-safe que carrega o modelo via `mlflow.sklearn.load_model()` e executa predições
+- **`schemas.py`** — schemas Pydantic de request (19 features do dataset Telco) e response
+
+**Endpoints:**
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/` | Mensagem de boas-vindas |
+| `GET` | `/health` | Verificação de saúde da API |
+| `GET` | `/model` | Informações do modelo carregado (URI, threshold, status) |
+| `POST` | `/predict` | Recebe features do cliente, retorna predição + probabilidade |
+
+**Variáveis de ambiente:**
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `MLFLOW_TRACKING_URI` | — | URI do servidor MLflow |
+| `MODEL_URI` | `models:/churn_prediction_pipeline/latest` | Caminho do modelo no Registry |
+| `PREDICTION_THRESHOLD` | `0.5` | Limiar de decisão para classificação |
+
+**Como rodar:**
+
+```bash
+# Via Docker Compose (stack completa: Postgres + MinIO + MLflow + FastAPI)
+cd docker
+cp .env_example .env   # ajuste as variáveis
+docker compose up
+
+# Ou diretamente com uvicorn (requer MLflow acessível)
+MLFLOW_TRACKING_URI=http://localhost:5001 \
+MODEL_URI=models:/churn_prediction_pipeline/latest \
+uvicorn src.api.main:app --reload --port 8000
+```
+
+**Exemplo de requisição:**
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gender": "Female",
+    "SeniorCitizen": 0,
+    "Partner": "Yes",
+    "Dependents": "No",
+    "tenure": 12,
+    "PhoneService": "Yes",
+    "MultipleLines": "No",
+    "InternetService": "Fiber optic",
+    "OnlineSecurity": "No",
+    "OnlineBackup": "Yes",
+    "DeviceProtection": "No",
+    "TechSupport": "No",
+    "StreamingTV": "Yes",
+    "StreamingMovies": "No",
+    "Contract": "Month-to-month",
+    "PaperlessBilling": "Yes",
+    "PaymentMethod": "Electronic check",
+    "MonthlyCharges": 70.35,
+    "TotalCharges": 840.5
+  }'
+```
+
+```json
+{
+  "prediction": 1,
+  "churn_probability": 0.73,
+  "threshold": 0.5,
+  "model_uri": "models:/churn_prediction_pipeline/latest"
+}
+```
+
+**Deploy AWS Lambda:** O arquivo `docker/lambda-api/Dockerfile` empacota a API usando [Mangum](https://mangum.fazeeh.com/) como adapter ASGI → Lambda. O handler registrado é `src.api.main.handler`.
+
+---
+
 ### `src/pipeline.py` — Orquestrador
 
 **O que faz:** A classe `ChurnPipeline` conecta todos os módulos em sequência:
@@ -314,9 +411,21 @@ etapa2_experimentos.ipynb
     ├── SklearnTrainer
     ├── PyTorchMLPTrainer ←── src/models/mlp_trainer.py
     │       └── ChurnMLP ←── src/models/mlp.py
-    └── MLflowService
+    └── MLflowService    (registra modelo no MLflow Registry)
+              │
+              ▼
+        MLflow Model Registry  (alias: champion / baseline / challenger)
+              │
+              ▼
+        ChurnModelService ←── src/api/model.py  (carrega modelo pelo URI)
+              │
+              ▼
+        FastAPI  ←── src/api/main.py
+              ├── GET  /health   → {"status": "ok"}
+              ├── GET  /model    → {status, model_uri, threshold}
+              └── POST /predict  → {prediction, churn_probability, threshold, model_uri}
 
-pipeline.py  (roda tudo acima via linha de comando)
+pipeline.py  (roda o treino completo via linha de comando)
 ```
 
 ---
@@ -453,5 +562,9 @@ Combine os passos acima. A ordem recomendada é:
 | Versão do dataset registrada (SHA-256) | `loader.py` + `mlflow_service.py` |
 | Early stopping | `mlp_trainer.py` |
 | Linting com ruff | `pyproject.toml` + `Makefile` |
-| Testes automatizados | `src/tests/` |
+| Testes automatizados (smoke, schema, API) | `tests/` |
 | Model Registry com descrição, tags e alias | `mlflow_service.py` + notebooks |
+| Validação de schema via Pydantic | `src/api/schemas.py` |
+| Carregamento thread-safe do modelo | `src/api/model.py` (`threading.Lock`) |
+| Deploy containerizado | `docker/docker-compose.yml` |
+| Suporte a AWS Lambda via Mangum | `docker/lambda-api/Dockerfile` |
