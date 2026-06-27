@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -27,7 +25,7 @@ class ChurnPredictionRequest(BaseModel):
 
 class ChurnPredictionResponse(BaseModel):
     prediction: int
-    churn_probability: Optional[float]
+    churn_probability: float | None
     threshold: float
     model_uri: str
 
@@ -35,5 +33,5 @@ class ChurnPredictionResponse(BaseModel):
 class ModelInfoResponse(BaseModel):
     status: str
     model_uri: str
-    tracking_uri: Optional[str]
+    tracking_uri: str | None
     threshold: float
